@@ -26,6 +26,7 @@ export function AuthProvider({ children }) {
       id: backendUser._id,
       name: backendUser.fullName,
       avatar_url: backendUser.photoUrl,
+      is_premium: Boolean(backendUser.isPremium),
       bio: backendUser.bio ?? backendUser.about,
       skills: backendUser.skills,
       role: backendUser.role,

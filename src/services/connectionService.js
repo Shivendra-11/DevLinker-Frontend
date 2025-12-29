@@ -3,7 +3,7 @@ import axios from "axios";
 const API_BASE_URL = "http://localhost:4000/api/v1";
 
 function getToken() {
-  // Keep this flexible: support common keys without forcing a refactor.
+  
   const raw =
     localStorage.getItem("token") ||
     localStorage.getItem("accessToken") ||
@@ -58,8 +58,8 @@ async function unwrap(promise) {
   }
 }
 
-export function sendConnectionRequest(status, toUserId) {
-  return unwrap(connectionApi.post(`/request/send/${status}/${toUserId}`));
+export function sendConnectionRequest(status, toUserId, payload = undefined) {
+  return unwrap(connectionApi.post(`/request/send/${status}/${toUserId}`, payload));
 }
 
 export function reviewConnectionRequest(status, requestId) {

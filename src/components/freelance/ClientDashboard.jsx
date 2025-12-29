@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,9 @@ import {
   FileText, Eye, BarChart3, ChevronRight, Plus, Crown, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockClientDashboardStats, mockApplications } from "@/data/mockFreelance";
+import { toast } from "@/hooks/use-toast";
+import { CreateGigDialog } from "./CreateGigDialog";
+import { decideGigApplication, getClientDashboard } from "@/services/freelanceService";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, LineChart, Line, AreaChart, Area
@@ -16,38 +19,117 @@ import {
 
 export function ClientDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
-  const stats = mockClientDashboardStats;
+  const navigate = useNavigate();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getClientDashboard();
+      setStats(data);
+    } catch (e) {
+      setError(e?.message || "Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const postedGigs = useMemo(() => stats?.postedGigs ?? [], [stats]);
+  const applicationsReceived = useMemo(() => stats?.applicationsReceived ?? [], [stats]);
 
   const statCards = [
     { 
       label: "Total Spent", 
-      value: `$${stats.totalSpent.toLocaleString()}`, 
+      value: `$${Number(stats?.totalSpent || 0).toLocaleString()}`,
       icon: DollarSign,
       color: "text-green-500 bg-green-500/10",
       change: null
     },
     { 
       label: "Active Gigs", 
-      value: stats.activeGigs, 
+      value: stats?.activeGigs || 0,
       icon: Briefcase,
       color: "text-blue-500 bg-blue-500/10",
       change: null
     },
     { 
       label: "Completed", 
-      value: stats.completedGigs, 
+      value: stats?.completedGigs || 0,
       icon: CheckCircle2,
       color: "text-purple-500 bg-purple-500/10",
       change: "+3"
     },
     { 
       label: "Total Posted", 
-      value: stats.totalGigsPosted, 
+      value: stats?.totalGigsPosted || 0,
       icon: FileText,
       color: "text-orange-500 bg-orange-500/10",
       change: null
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button variant="outline" onClick={refresh}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">No dashboard data</p>
+      </div>
+    );
+  }
+
+  const handleAccept = async (application) => {
+    try {
+      await decideGigApplication(application.gigId, application.id, "accepted");
+      toast({ title: "Application accepted" });
+      await refresh();
+    } catch (e) {
+      toast({
+        title: "Failed to accept",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReject = async (application) => {
+    try {
+      await decideGigApplication(application.gigId, application.id, "rejected");
+      toast({ title: "Application rejected" });
+      await refresh();
+    } catch (e) {
+      toast({
+        title: "Failed to reject",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -57,10 +139,18 @@ export function ClientDashboard() {
           <h2 className="text-xl font-bold">Client Dashboard</h2>
           <p className="text-muted-foreground">Manage your gigs and find talent</p>
         </div>
-        <Button className="gradient-primary text-primary-foreground">
-          <Plus className="w-4 h-4 mr-2" />
-          Post New Gig
-        </Button>
+        <CreateGigDialog
+          onCreated={async () => {
+            await refresh();
+            setActiveTab("gigs");
+          }}
+          trigger={
+            <Button className="gradient-primary text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" />
+              Post New Gig
+            </Button>
+          }
+        />
       </div>
 
       {/* Stats Grid */}
@@ -96,7 +186,7 @@ export function ClientDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="gigs">My Gigs ({stats.postedGigs.length})</TabsTrigger>
+          <TabsTrigger value="gigs">My Gigs ({postedGigs.length})</TabsTrigger>
           <TabsTrigger value="applications">Applications</TabsTrigger>
           <TabsTrigger value="freelancers">Hired</TabsTrigger>
         </TabsList>
@@ -113,7 +203,7 @@ export function ClientDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={stats.monthlySpending}>
+                  <AreaChart data={stats.monthlySpending || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
                     <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -147,7 +237,7 @@ export function ClientDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.applicationsByGig}>
+                  <BarChart data={stats.applicationsByGig || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="gig" stroke="hsl(var(--muted-foreground))" />
                     <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -182,11 +272,20 @@ export function ClientDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats.gigPerformance.map((item, index) => (
+                {(stats.gigPerformance || []).map((item, index) => (
                   <div 
                     key={item.gig} 
                     className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors animate-fade-in"
                     style={{ animationDelay: `${index * 50}ms` }}
+                    role={item.gigId ? "button" : undefined}
+                    tabIndex={item.gigId ? 0 : undefined}
+                    onClick={() => {
+                      if (item.gigId) navigate(`/freelance/${item.gigId}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!item.gigId) return;
+                      if (e.key === "Enter" || e.key === " ") navigate(`/freelance/${item.gigId}`);
+                    }}
                   >
                     <div className="flex-1">
                       <p className="font-medium">{item.gig}</p>
@@ -219,11 +318,17 @@ export function ClientDashboard() {
         </TabsContent>
 
         <TabsContent value="gigs" className="space-y-4">
-          {stats.postedGigs.map((gig, index) => (
+          {postedGigs.map((gig, index) => (
             <Card 
               key={gig.id} 
               className="glass border-border/50 hover-lift transition-all animate-fade-in"
               style={{ animationDelay: `${index * 50}ms` }}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/freelance/${gig.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") navigate(`/freelance/${gig.id}`);
+              }}
             >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-4">
@@ -267,7 +372,11 @@ export function ClientDashboard() {
                       </div>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/freelance/${gig.id}`)}
+                  >
                     Manage <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
@@ -277,7 +386,7 @@ export function ClientDashboard() {
         </TabsContent>
 
         <TabsContent value="applications" className="space-y-4">
-          {mockApplications.map((application, index) => (
+          {applicationsReceived.map((application, index) => (
             <Card 
               key={application.id} 
               className="glass border-border/50 hover-lift transition-all animate-fade-in"
@@ -317,7 +426,14 @@ export function ClientDashboard() {
                       {application.applicant.role} • {application.applicant.experience}
                     </p>
                     <p className="text-xs text-muted-foreground mb-2">
-                      For: <span className="text-foreground">{application.gig.title}</span>
+                      For:{" "}
+                      <button
+                        type="button"
+                        className="text-foreground underline-offset-2 hover:underline"
+                        onClick={() => navigate(`/freelance/${application.gigId}`)}
+                      >
+                        {application.gig.title}
+                      </button>
                     </p>
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                       {application.proposal}
@@ -340,10 +456,27 @@ export function ClientDashboard() {
                   </div>
 
                   <div className="flex flex-col gap-2 shrink-0">
-                    <Button size="sm" className="gradient-primary text-primary-foreground">
+                    <Button
+                      size="sm"
+                      className="gradient-primary text-primary-foreground"
+                      onClick={() => handleAccept(application)}
+                      disabled={application.status === "accepted" || application.status === "rejected"}
+                    >
                       Accept
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReject(application)}
+                      disabled={application.status === "accepted" || application.status === "rejected"}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/profile/${application.applicant.id}`)}
+                    >
                       View Profile
                     </Button>
                   </div>

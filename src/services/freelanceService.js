@@ -34,6 +34,24 @@ export async function applyToGig(gigId, payload) {
   return res?.data ?? null;
 }
 
+export async function getMyGigApplication(gigId) {
+  const res = await apiRequest(`/gig/${gigId}/my-application`, { method: "GET" });
+  return res?.data ?? null;
+}
+
+export async function decideGigApplication(gigId, applicationId, status) {
+  const res = await apiRequest(`/gig/${gigId}/applications/${applicationId}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ status }),
+  });
+  return res?.data ?? null;
+}
+
+export async function listGigApplications(gigId) {
+  const res = await apiRequest(`/gig/${gigId}/applications`, { method: "GET" });
+  return res?.data ?? [];
+}
+
 export async function listGigComments(gigId) {
   const res = await apiRequest(`/gig/${gigId}/comments`, { method: "GET" });
   return res?.data ?? [];

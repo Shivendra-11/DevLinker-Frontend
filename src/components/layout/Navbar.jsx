@@ -5,6 +5,7 @@ import {
   Home, 
   Users, 
   MessageCircle, 
+  MessagesSquare,
   Bell, 
   User, 
   Menu,
@@ -32,6 +33,7 @@ const navItems = [
   { path: "/feed", label: "Discover", icon: Home },
   { path: "/projects", label: "Projects", icon: Sparkles },
   { path: "/freelance", label: "Freelance", icon: Briefcase },
+  { path: "/discuss", label: "Discuss", icon: MessagesSquare },
 ];
 
 // Items moved to profile dropdown

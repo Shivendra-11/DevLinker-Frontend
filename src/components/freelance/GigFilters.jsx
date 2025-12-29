@@ -19,7 +19,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { gigCategories } from "@/data/mockFreelance";
+import { gigCategories } from "@/data/options";
 
 const availableSkills = [
   "React", "TypeScript", "Node.js", "Python", "Figma", "AWS", 
@@ -89,8 +89,8 @@ export function GigFilters({ onFilterChange, filters }) {
           <SelectContent>
             <SelectItem value="All">All Categories</SelectItem>
             {gigCategories.map((cat) => (
-              <SelectItem key={cat.name} value={cat.name}>
-                {cat.name} ({cat.count})
+              <SelectItem key={cat} value={cat}>
+                {cat}
               </SelectItem>
             ))}
           </SelectContent>

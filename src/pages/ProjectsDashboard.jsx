@@ -63,7 +63,7 @@ import {
 import { apiRequest } from "@/lib/apiClient";
 import { toast } from "sonner";
 import { deleteProject, getMyProjectInterests, listMyProjects, updateProject } from "@/services/projectService";
-import { projectCategories } from "@/data/mockDevelopers";
+import { projectCategories } from "@/data/options";
 import { sendConnectionRequest } from "@/services/connectionService";
 
 const metricCards = [

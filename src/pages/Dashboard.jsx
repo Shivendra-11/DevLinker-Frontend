@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { mockDashboardStats } from "@/data/mockDevelopers";
+import { getDashboardStats } from "@/services/dashboardService";
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, AreaChart, Area, PieChart as RePieChart, Pie, Cell 
@@ -36,15 +36,93 @@ const CHART_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--c
 export default function Dashboard() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
-  
-  const { stats, weeklyActivity, monthlyGrowth, recentActivity, topSkillsViewed, profileViewers, matchRate, responseRate, peakHours } = mockDashboardStats;
 
-  const formatTime = (time) => {
-    return time;
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
+    setError(null);
+
+    getDashboardStats()
+      .then((data) => {
+        if (cancelled) return;
+        setDashboard(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err?.message || "Failed to load dashboard");
+        setDashboard(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const formatTime = (value) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString();
   };
+
+  const safeDashboard = useMemo(() => {
+    const safeMatchRate =
+      dashboard?.matchRate && typeof dashboard.matchRate === "object"
+        ? dashboard.matchRate
+        : { percentage: 0, weeklyChange: 0, matched: 0, sent: 0 };
+
+    const safeResponseRate =
+      dashboard?.responseRate && typeof dashboard.responseRate === "object"
+        ? dashboard.responseRate
+        : {
+            percentage: 0,
+            avgResponseTime: "N/A",
+            responded: 0,
+            received: 0,
+          };
+
+    return {
+      stats: dashboard?.stats ?? [],
+      weeklyActivity: dashboard?.weeklyActivity ?? [],
+      monthlyGrowth: dashboard?.monthlyGrowth ?? [],
+      recentActivity: (dashboard?.recentActivity ?? []).map((a) => ({
+        ...a,
+        time: formatTime(a.time),
+      })),
+      topSkillsViewed: dashboard?.topSkillsViewed ?? [],
+      profileViewers: dashboard?.profileViewers ?? [],
+      matchRate: safeMatchRate,
+      responseRate: safeResponseRate,
+      peakHours: dashboard?.peakHours ?? [],
+    };
+  }, [dashboard]);
+
+  const { stats, weeklyActivity, monthlyGrowth, recentActivity, topSkillsViewed, profileViewers, matchRate, responseRate, peakHours } = safeDashboard;
 
   return (
     <MainLayout>
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <Card className="glass border-border/50">
+            <CardContent className="p-6">
+              <p className="text-sm text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -65,7 +143,7 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => {
+          {stats.map((stat) => {
             const Icon = statIcons[stat.label] || Eye;
             const colorClass = statColors[stat.label] || "text-primary bg-primary/10";
             const isPositive = stat.change >= 0;
@@ -91,7 +169,7 @@ export default function Dashboard() {
                   </div>
                   <div className="mt-4 h-12">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={stat.trend.map((v, i) => ({ value: v }))}>
+                      <AreaChart data={(stat.trend || []).map((v) => ({ value: v }))}>
                         <Area 
                           type="monotone" 
                           dataKey="value" 
@@ -245,7 +323,7 @@ export default function Dashboard() {
                             {viewer.count}x views
                           </Badge>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {formatTime(new Date(viewer.viewedAt).toLocaleDateString())}
+                            {formatTime(viewer.viewedAt)}
                           </p>
                         </div>
                       </div>
@@ -386,6 +464,7 @@ export default function Dashboard() {
           </TabsContent>
         </Tabs>
       </div>
+      )}
     </MainLayout>
   );
 }

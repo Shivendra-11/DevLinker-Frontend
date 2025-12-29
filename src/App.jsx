@@ -17,6 +17,9 @@ import UserProfile from "./pages/UserProfile";
 import Pricing from "./pages/Pricing";
 import Settings from "./pages/Settings";
 import Dashboard from "./pages/Dashboard";
+import Discussions from "./pages/Discussions";
+import DiscussionDetail from "./pages/DiscussionDetail";
+import MyDiscussions from "./pages/MyDiscussions";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import ProjectsDashboard from "./pages/ProjectsDashboard";
@@ -125,6 +128,30 @@ const App = () => (
             element={
               <ProtectedRoute requireProfile>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/discuss"
+            element={
+              <ProtectedRoute requireProfile>
+                <Discussions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/discuss/:postId"
+            element={
+              <ProtectedRoute requireProfile>
+                <DiscussionDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-discussions"
+            element={
+              <ProtectedRoute requireProfile>
+                <MyDiscussions />
               </ProtectedRoute>
             }
           />

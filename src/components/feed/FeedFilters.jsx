@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Filter, X, Save, Crown } from "lucide-react";
-import { allTechStacks, experienceLevels, roles, availabilityOptions } from "@/data/mockDevelopers";
+import { allTechStacks, experienceLevels, roles, availabilityOptions } from "@/data/options";
 import { cn } from "@/lib/utils";
 
 export function FeedFilters({ filters, onFiltersChange, isPremium = false }) {

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,7 @@ import {
   FileText, Bookmark, ArrowUpRight, Target, Award, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { 
-  mockFreelancerDashboardStats, 
-  mockApplications, 
-  mockGigs 
-} from "@/data/mockFreelance";
+import { getFreelancerDashboard } from "@/services/freelanceService";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -20,38 +17,89 @@ import {
 
 export function FreelancerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
-  const stats = mockFreelancerDashboardStats;
+  const navigate = useNavigate();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getFreelancerDashboard();
+      setStats(data);
+    } catch (e) {
+      setError(e?.message || "Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const applications = useMemo(() => stats?.applications ?? [], [stats]);
+  const savedGigs = useMemo(() => stats?.savedGigs ?? [], [stats]);
 
   const statCards = [
     { 
       label: "Total Earnings", 
-      value: `$${stats.totalEarnings.toLocaleString()}`, 
+      value: `$${Number(stats?.totalEarnings || 0).toLocaleString()}`,
       icon: DollarSign,
       color: "text-green-500 bg-green-500/10",
       change: "+12%"
     },
     { 
       label: "Active Projects", 
-      value: stats.activeProjects, 
+      value: stats?.activeProjects || 0,
       icon: Briefcase,
       color: "text-blue-500 bg-blue-500/10",
       change: null
     },
     { 
       label: "Completed", 
-      value: stats.completedProjects, 
+      value: stats?.completedProjects || 0,
       icon: CheckCircle2,
       color: "text-purple-500 bg-purple-500/10",
       change: "+2"
     },
     { 
       label: "Success Rate", 
-      value: `${stats.successRate}%`, 
+      value: `${stats?.successRate || 0}%`,
       icon: Target,
       color: "text-orange-500 bg-orange-500/10",
       change: "+3%"
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button variant="outline" onClick={refresh}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">No dashboard data</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -94,7 +142,7 @@ export function FreelancerDashboard() {
                 <Star className="w-8 h-8 text-yellow-500 fill-yellow-500" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{stats.avgRating}</p>
+                <p className="text-3xl font-bold">{stats.avgRating || 0}</p>
                 <p className="text-muted-foreground">Average Rating</p>
               </div>
             </div>
@@ -104,7 +152,7 @@ export function FreelancerDashboard() {
                   key={star}
                   className={cn(
                     "w-6 h-6",
-                    star <= Math.floor(stats.avgRating) 
+                    star <= Math.floor(stats.avgRating || 0)
                       ? "text-yellow-500 fill-yellow-500" 
                       : "text-muted-foreground"
                   )}
@@ -118,7 +166,7 @@ export function FreelancerDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="applied">Applied ({mockApplications.length})</TabsTrigger>
+          <TabsTrigger value="applied">Applied ({applications.length})</TabsTrigger>
           <TabsTrigger value="accepted">Accepted</TabsTrigger>
           <TabsTrigger value="saved">Saved</TabsTrigger>
         </TabsList>
@@ -135,7 +183,7 @@ export function FreelancerDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={stats.weeklyApplications}>
+                  <AreaChart data={stats.weeklyApplications || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" />
                     <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -171,7 +219,7 @@ export function FreelancerDashboard() {
                   <ResponsiveContainer width={150} height={150}>
                     <PieChart>
                       <Pie
-                        data={stats.applicationsByStatus}
+                        data={stats.applicationsByStatus || []}
                         cx="50%"
                         cy="50%"
                         innerRadius={40}
@@ -179,14 +227,14 @@ export function FreelancerDashboard() {
                         paddingAngle={4}
                         dataKey="count"
                       >
-                        {stats.applicationsByStatus.map((entry, index) => (
+                        {(stats.applicationsByStatus || []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-3">
-                    {stats.applicationsByStatus.map((item) => (
+                    {(stats.applicationsByStatus || []).map((item) => (
                       <div key={item.status} className="flex items-center gap-3">
                         <div 
                           className="w-3 h-3 rounded-full" 
@@ -205,11 +253,17 @@ export function FreelancerDashboard() {
 
         <TabsContent value="applied" className="space-y-4">
           <div className="grid gap-4">
-            {mockApplications.map((application, index) => (
+            {applications.map((application, index) => (
               <Card 
                 key={application.id} 
                 className="glass border-border/50 hover-lift transition-all animate-fade-in"
                 style={{ animationDelay: `${index * 50}ms` }}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/freelance/${application.gigId}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") navigate(`/freelance/${application.gigId}`);
+                }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between gap-4">
@@ -251,7 +305,14 @@ export function FreelancerDashboard() {
                         </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/freelance/${application.gigId}`);
+                      }}
+                    >
                       <ArrowUpRight className="w-5 h-5" />
                     </Button>
                   </div>
@@ -262,7 +323,7 @@ export function FreelancerDashboard() {
         </TabsContent>
 
         <TabsContent value="accepted" className="space-y-4">
-          {mockApplications.filter(app => app.status === "accepted").length === 0 ? (
+          {applications.filter(app => app.status === "accepted").length === 0 ? (
             <Card className="glass border-border/50">
               <CardContent className="p-12 text-center">
                 <Award className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -273,11 +334,17 @@ export function FreelancerDashboard() {
               </CardContent>
             </Card>
           ) : (
-            mockApplications.filter(app => app.status === "accepted").map((application, index) => (
+            applications.filter(app => app.status === "accepted").map((application, index) => (
               <Card 
                 key={application.id} 
                 className="glass border-border/50 border-l-4 border-l-green-500 hover-lift transition-all animate-fade-in"
                 style={{ animationDelay: `${index * 50}ms` }}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/freelance/${application.gigId}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") navigate(`/freelance/${application.gigId}`);
+                }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between gap-4">
@@ -287,18 +354,26 @@ export function FreelancerDashboard() {
                         Accepted
                       </Badge>
                       <h3 className="font-semibold text-lg mb-1">{application.gig.title}</h3>
-                      <div className="flex items-center gap-2 mt-2">
-                        <img 
-                          src={application.gig.owner.avatar_url} 
-                          alt={application.gig.owner.name}
-                          className="w-6 h-6 rounded-full"
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          Client: {application.gig.owner.name}
-                        </span>
-                      </div>
+                      {application.gig?.owner?.name && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <img 
+                            src={application.gig.owner.avatar_url} 
+                            alt={application.gig.owner.name}
+                            className="w-6 h-6 rounded-full"
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            Client: {application.gig.owner.name}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <Button size="sm">
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/freelance/${application.gigId}`);
+                      }}
+                    >
                       View Project <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
@@ -309,11 +384,17 @@ export function FreelancerDashboard() {
         </TabsContent>
 
         <TabsContent value="saved" className="space-y-4">
-          {stats.savedGigs.map((gig, index) => (
+          {savedGigs.map((gig, index) => (
             <Card 
               key={gig.id} 
               className="glass border-border/50 hover-lift transition-all animate-fade-in"
               style={{ animationDelay: `${index * 50}ms` }}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/freelance/${gig.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") navigate(`/freelance/${gig.id}`);
+              }}
             >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-4">
@@ -353,10 +434,23 @@ export function FreelancerDashboard() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/freelance/${gig.id}`);
+                        }}
+                      >
                       <Bookmark className="w-5 h-5 fill-primary text-primary" />
                     </Button>
-                    <Button size="sm">
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/freelance/${gig.id}`);
+                        }}
+                      >
                       Apply <ArrowUpRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>

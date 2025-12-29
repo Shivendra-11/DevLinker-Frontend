@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, Heart, MessageCircle, Eye, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockNotifications } from "@/data/mockDevelopers";
+import { toast } from "@/hooks/use-toast";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/services/notificationService";
 
 const getIcon = (type) => {
   switch (type) {
@@ -27,16 +32,64 @@ const getIconColor = (type) => {
 };
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    listNotifications({ limit: 100 })
+      .then((items) => {
+        if (!mounted) return;
+        setNotifications(Array.isArray(items) ? items : []);
+      })
+      .catch((e) => {
+        if (!mounted) return;
+        toast({
+          title: "Failed to load notifications",
+          description: e?.message || "Please try again.",
+          variant: "destructive",
+        });
+        setNotifications([]);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    markAllNotificationsRead()
+      .then(() => {
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      })
+      .catch(() => {
+        toast({
+          title: "Action failed",
+          description: "Unable to mark all as read.",
+          variant: "destructive",
+        });
+      });
   };
 
   const markAsRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    markNotificationRead(id)
+      .then(() => {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+        );
+      })
+      .catch(() => {
+        toast({
+          title: "Action failed",
+          description: "Unable to mark as read.",
+          variant: "destructive",
+        });
+      });
   };
 
   const formatTime = (dateString) => {
@@ -66,6 +119,13 @@ export default function Notifications() {
         </div>
         
         <div className="space-y-2">
+          {loading && (
+            <div className="text-center py-12 glass rounded-2xl">
+              <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          )}
+
           {notifications.map((n) => {
             const Icon = getIcon(n.type);
             return (
@@ -96,7 +156,7 @@ export default function Notifications() {
             );
           })}
           
-          {notifications.length === 0 && (
+          {!loading && notifications.length === 0 && (
             <div className="text-center py-12 glass rounded-2xl">
               <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No notifications yet</p>

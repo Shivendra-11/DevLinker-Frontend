@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ProfileStrengthMeter } from "@/components/profile/ProfileStrengthMeter";
 import { 
   Edit, Camera, MapPin, Briefcase, Github, Linkedin, Globe, Check, X,
@@ -14,6 +29,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { deleteDiscussPost, listDiscussPosts, updateDiscussPost } from "@/services/discussService";
+import { getBackendOrigin } from "@/lib/apiClient";
+
+const DISCUSS_CATEGORIES = ["General", "Questions", "News", "Help"];
 
 const allSkills = [
   "React", "TypeScript", "Node.js", "Python", "Go", "Rust", 
@@ -26,6 +45,19 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState(profile || {});
   const [previewMode, setPreviewMode] = useState(false);
+
+  const [myDiscussRes, setMyDiscussRes] = useState(null);
+  const [myDiscussLoading, setMyDiscussLoading] = useState(false);
+  const [myDiscussError, setMyDiscussError] = useState("");
+
+  const [editPostOpen, setEditPostOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editForm, setEditForm] = useState({ title: "", content: "", category: "General", tags: "", links: "" });
+  const [savingPost, setSavingPost] = useState(false);
+  const [removeImages, setRemoveImages] = useState([]);
+  const [removeAttachments, setRemoveAttachments] = useState([]);
+  const [newImages, setNewImages] = useState([]);
+  const [newFiles, setNewFiles] = useState([]);
 
   if (loading || !profile) {
     return (
@@ -41,6 +73,25 @@ const Profile = () => {
   }
 
   const displayProfile = previewMode ? editedProfile : (isEditing ? editedProfile : profile);
+
+  const loadMyDiscussions = async () => {
+    if (!profile?.id) return;
+    setMyDiscussLoading(true);
+    setMyDiscussError("");
+    try {
+      const res = await listDiscussPosts({ page: 1, limit: 50, sort: "new", authorId: profile.id });
+      setMyDiscussRes(res);
+    } catch (err) {
+      setMyDiscussError(err?.message || "Failed to load your discussions");
+    } finally {
+      setMyDiscussLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMyDiscussions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
 
   const handleSave = async () => {
     await updateProfile(editedProfile);
@@ -59,6 +110,83 @@ const Profile = () => {
       setEditedProfile({ ...editedProfile, skills: currentSkills.filter((s) => s !== skill) });
     } else {
       setEditedProfile({ ...editedProfile, skills: [...currentSkills, skill] });
+    }
+  };
+
+  const myPosts = myDiscussRes?.data ?? [];
+  const myPostsCountLabel = myDiscussRes?.hasMore ? `${myPosts.length}+` : `${myPosts.length}`;
+
+  const openEditPost = (post) => {
+    setEditingPost(post);
+    setEditForm({
+      title: post?.title || "",
+      content: post?.content || "",
+      category: post?.category || "General",
+      tags: Array.isArray(post?.tags) ? post.tags.join(", ") : "",
+      links: Array.isArray(post?.links) ? post.links.map((l) => l?.url).filter(Boolean).join("\n") : "",
+    });
+    setRemoveImages([]);
+    setRemoveAttachments([]);
+    setNewImages([]);
+    setNewFiles([]);
+    setEditPostOpen(true);
+  };
+
+  const saveEditedPost = async () => {
+    if (!editingPost?.id) return;
+    const title = String(editForm.title || "").trim();
+    const content = String(editForm.content || "").trim();
+    const category = String(editForm.category || "General").trim() || "General";
+    const tags = String(editForm.tags || "").trim();
+
+    const links = String(editForm.links || "")
+      .split(/\r?\n/)
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .slice(0, 5)
+      .map((url) => ({ url }));
+
+    if (!title || !content) {
+      toast.error("Title and content are required");
+      return;
+    }
+
+    setSavingPost(true);
+    try {
+      await updateDiscussPost(editingPost.id, {
+        title,
+        content,
+        category,
+        tags,
+        links,
+        removeImages,
+        removeAttachments,
+        newImages,
+        newFiles,
+      });
+      toast.success("Post updated");
+      setEditPostOpen(false);
+      setEditingPost(null);
+      await loadMyDiscussions();
+    } catch (err) {
+      toast.error(err?.message || "Failed to update post");
+    } finally {
+      setSavingPost(false);
+    }
+  };
+
+  const backendOrigin = getBackendOrigin();
+
+  const handleDeletePost = async (postId) => {
+    const ok = window.confirm("Delete this post? This cannot be undone.");
+    if (!ok) return;
+
+    try {
+      await deleteDiscussPost(postId);
+      toast.success("Post deleted");
+      await loadMyDiscussions();
+    } catch (err) {
+      toast.error(err?.message || "Failed to delete post");
     }
   };
 
@@ -142,6 +270,272 @@ const Profile = () => {
                 </div>
               </TabsContent>
             </Tabs>
+
+            <div className="mt-6 p-5 rounded-2xl glass border border-border/50">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">My Discussions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Posts by you: <span className="font-medium text-foreground">{myDiscussLoading ? "..." : myPostsCountLabel}</span>
+                  </p>
+                </div>
+                <Link to="/my-discussions">
+                  <Button variant="outline" size="sm">View all</Button>
+                </Link>
+              </div>
+
+              {myDiscussError ? (
+                <p className="text-sm text-destructive mt-3">{myDiscussError}</p>
+              ) : myDiscussLoading ? (
+                <p className="text-sm text-muted-foreground mt-3">Loading your posts...</p>
+              ) : myPosts.length === 0 ? (
+                <p className="text-sm text-muted-foreground mt-3">You haven’t created any discussion posts yet.</p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {myPosts.slice(0, 10).map((p) => (
+                    <div key={p.id} className="rounded-xl border border-border/50 p-4 bg-muted/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{p.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {p.category || "General"} • {p.voteCount ?? 0} votes • {p.commentsCount ?? 0} comments
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditPost(p)}>
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => handleDeletePost(p.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Dialog open={editPostOpen} onOpenChange={setEditPostOpen}>
+              <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit discussion post</DialogTitle>
+                  <DialogDescription>Update your post and manage links/uploads.</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Title</Label>
+                    <Input value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={editForm.category} onValueChange={(v) => setEditForm((p) => ({ ...p, category: v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DISCUSS_CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Content</Label>
+                    <Textarea
+                      value={editForm.content}
+                      onChange={(e) => setEditForm((p) => ({ ...p, content: e.target.value }))}
+                      rows={6}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tags (optional)</Label>
+                    <Input
+                      value={editForm.tags}
+                      onChange={(e) => setEditForm((p) => ({ ...p, tags: e.target.value }))}
+                      placeholder="comma-separated, e.g. react, node"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Links (optional)</Label>
+                    <Textarea
+                      value={editForm.links}
+                      onChange={(e) => setEditForm((p) => ({ ...p, links: e.target.value }))}
+                      placeholder="One URL per line"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Add new images (optional)</Label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []).slice(0, 5);
+                        setNewImages(files);
+                      }}
+                    />
+                    {newImages.length > 0 && (
+                      <p className="text-xs text-muted-foreground">Selected {newImages.length} image(s)</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Add new attachments (optional)</Label>
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []).slice(0, 3);
+                        setNewFiles(files);
+                      }}
+                    />
+                    {newFiles.length > 0 && (
+                      <p className="text-xs text-muted-foreground">Selected {newFiles.length} file(s)</p>
+                    )}
+                  </div>
+
+                  {editingPost && (
+                    <div className="space-y-3">
+                      {(editingPost.images || []).length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Current images</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {(editingPost.images || []).map((img) => (
+                              <div key={img.url} className="space-y-1">
+                                <img
+                                  src={`${backendOrigin}${img.url}`}
+                                  alt={img.originalName || "image"}
+                                  className={`rounded-md border border-border/50 object-cover w-full h-24 ${
+                                    removeImages.includes(img.url) ? "opacity-40" : ""
+                                  }`}
+                                  loading="lazy"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() =>
+                                    setRemoveImages((prev) =>
+                                      prev.includes(img.url) ? prev.filter((u) => u !== img.url) : [...prev, img.url]
+                                    )
+                                  }
+                                >
+                                  {removeImages.includes(img.url) ? "Undo remove" : "Remove"}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(editingPost.attachments || []).length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Current attachments</p>
+                          <div className="space-y-1">
+                            {(editingPost.attachments || []).map((f) => (
+                              <div key={f.url} className="flex items-center justify-between gap-2">
+                                <a
+                                  href={`${backendOrigin}${f.url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`text-sm text-primary hover:underline block truncate flex-1 ${
+                                    removeAttachments.includes(f.url) ? "opacity-40" : ""
+                                  }`}
+                                >
+                                  {f.originalName || f.url}
+                                </a>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setRemoveAttachments((prev) =>
+                                      prev.includes(f.url) ? prev.filter((u) => u !== f.url) : [...prev, f.url]
+                                    )
+                                  }
+                                >
+                                  {removeAttachments.includes(f.url) ? "Undo" : "Remove"}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Links (optional)</Label>
+                    <Textarea
+                      value={editForm.links}
+                      onChange={(e) => setEditForm((p) => ({ ...p, links: e.target.value }))}
+                      placeholder="One URL per line"
+                      rows={3}
+                    />
+                  </div>
+
+                  {editingPost && (
+                    <div className="space-y-3">
+                      {(editingPost.images || []).length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Current images</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {(editingPost.images || []).map((img) => (
+                              <img
+                                key={img.url}
+                                src={`${backendOrigin}${img.url}`}
+                                alt={img.originalName || "image"}
+                                className="rounded-md border border-border/50 object-cover w-full h-24"
+                                loading="lazy"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(editingPost.attachments || []).length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Current attachments</p>
+                          <div className="space-y-1">
+                            {(editingPost.attachments || []).map((f) => (
+                              <a
+                                key={f.url}
+                                href={`${backendOrigin}${f.url}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-primary hover:underline block truncate"
+                              >
+                                {f.originalName || f.url}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <Button className="w-full gradient-primary" onClick={saveEditedPost} disabled={savingPost}>
+                    {savingPost ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {!profile.is_premium && (
               <div className="mt-8 p-5 rounded-2xl bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20">

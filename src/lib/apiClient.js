@@ -17,6 +17,11 @@ function getApiBaseUrl() {
   return (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
 }
 
+export function getBackendOrigin() {
+  const base = getApiBaseUrl();
+  return base.replace(/\/api\/v1\/?$/i, "");
+}
+
 async function parseErrorResponse(response) {
   // Backend sometimes returns plain-text like: "ERROR : message"
   const text = await response.text();
@@ -37,14 +42,20 @@ export async function apiRequest(path, options = {}) {
 
   const token = getToken();
 
+  const isFormData = Boolean(options?.isFormData);
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+
+  if (!isFormData) {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  }
+
   const response = await fetch(url, {
     credentials: "include",
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!response.ok) {

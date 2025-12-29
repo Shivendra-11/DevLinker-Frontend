@@ -47,7 +47,7 @@ import {
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { projectCategories, allTechStacks } from "@/data/mockDevelopers";
+import { projectCategories, allTechStacks } from "@/data/options";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { createProject, listProjects, toggleProjectInterest } from "@/services/projectService";
