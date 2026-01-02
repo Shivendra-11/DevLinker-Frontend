@@ -1,7 +1,7 @@
 import { Navbar } from "./Navbar";
 
 export function MainLayout({ children }) {
-  const linkedinUrl = import.meta.env.VITE_LINKEDIN_URL || "https://www.linkedin.com";
+  const linkedinUrl = "https://www.linkedin.com/in/shivendra-keshari-46aa67256/";
 
   return (
     <div className="min-h-screen bg-background">
