@@ -102,6 +102,8 @@ export default function Landing() {
       {/* Hero Section - Completely Redesigned */}
       <section className="relative min-h-screen flex items-center pt-16">
         {/* Background */}
+        const linkedinUrl = import.meta.env.VITE_LINKEDIN_URL || "https://www.linkedin.com";
+
         <div className="absolute inset-0">
           <div 
             className="absolute inset-0 opacity-30 dark:opacity-50"
@@ -185,6 +187,17 @@ export default function Landing() {
             
             {/* Right Content - Floating Cards */}
             <div className="relative hidden lg:block">
+                  <p className="text-sm text-muted-foreground">
+                    Made with love by{" "}
+                    <a
+                      href={linkedinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Shivendra Keshari
+                    </a>
+                  </p>
               <div className="relative h-[600px]">
                 {/* Main Card */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 animate-float">
