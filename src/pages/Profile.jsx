@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,10 +41,13 @@ const allSkills = [
 ];
 
 const Profile = () => {
-  const { profile, updateProfile, loading } = useAuth();
+  const { profile, updateProfile, uploadProfilePhoto, loading } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState(profile || {});
   const [previewMode, setPreviewMode] = useState(false);
+
+  const fileInputRef = useRef(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const [myDiscussRes, setMyDiscussRes] = useState(null);
   const [myDiscussLoading, setMyDiscussLoading] = useState(false);
@@ -97,6 +100,38 @@ const Profile = () => {
     await updateProfile(editedProfile);
     setIsEditing(false);
     toast.success("Profile updated successfully!");
+  };
+
+  const openPhotoPicker = () => {
+    if (!isEditing) return;
+    if (photoUploading) return;
+    fileInputRef.current?.click();
+  };
+
+  const onPhotoSelected = async (e) => {
+    const file = e.target.files?.[0];
+    // allow selecting the same file again later
+    e.target.value = "";
+    if (!file) return;
+
+    if (!String(file.type || "").startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    setPhotoUploading(true);
+    try {
+      const res = await uploadProfilePhoto(file);
+      const newUrl = res?.data?.photoUrl;
+      if (newUrl) {
+        setEditedProfile((prev) => ({ ...prev, avatar_url: newUrl }));
+      }
+      toast.success("Profile photo updated");
+    } catch (err) {
+      toast.error(err?.message || "Failed to upload photo");
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const handleShare = () => {
@@ -209,7 +244,30 @@ const Profile = () => {
               <div className="relative group">
                 <img src={displayProfile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`} alt={displayProfile.name} className="relative w-32 h-32 rounded-2xl border-4 border-background object-cover shadow-2xl bg-muted" />
                 {profile.is_premium && (<div className="absolute -top-3 -right-3 animate-bounce" style={{ animationDuration: '2s' }}><Badge className="gradient-primary gap-1 shadow-lg"><Crown className="w-3 h-3" />Premium</Badge></div>)}
-                {isEditing && (<button className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg"><Camera className="w-4 h-4" /></button>)}
+                {isEditing && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={openPhotoPicker}
+                      disabled={photoUploading}
+                      className={cn(
+                        "absolute bottom-2 right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg",
+                        photoUploading && "opacity-60 cursor-not-allowed"
+                      )}
+                      aria-label="Change profile photo"
+                      title={photoUploading ? "Uploading..." : "Change photo"}
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={onPhotoSelected}
+                      className="hidden"
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>

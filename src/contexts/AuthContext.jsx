@@ -220,6 +220,34 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const uploadProfilePhoto = async (file) => {
+    if (!user) {
+      return { data: null, error: new Error("No user logged in") };
+    }
+    if (!file) {
+      return { data: null, error: new Error("No file selected") };
+    }
+
+    const form = new FormData();
+    form.append("photo", file);
+
+    try {
+      const result = await apiRequest("/profile/profile/photo", {
+        method: "POST",
+        body: form,
+        isFormData: true,
+      });
+
+      const updatedUser = result?.data ?? user;
+      setUser(updatedUser);
+      setProfile(isProfileComplete(updatedUser) ? mapBackendUserToProfile(updatedUser) : null);
+
+      return { data: updatedUser, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+
   const value = {
     user,
     session,
@@ -230,6 +258,7 @@ export function AuthProvider({ children }) {
     signOut,
     createProfile,
     updateProfile,
+    uploadProfilePhoto,
     fetchProfile: () => fetchProfile(),
   };
 
