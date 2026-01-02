@@ -1,20 +1,7 @@
 import axios from "axios";
+import { clearAuthToken, getApiBaseUrl, getAuthToken } from "@/lib/apiClient";
 
-const API_BASE_URL = "http://localhost:4000/api/v1";
-
-function getToken() {
-  
-  const raw =
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("authToken") ||
-    "";
-
-  const token = String(raw || "").trim();
-  if (!token) return "";
-  if (token === "undefined" || token === "null") return "";
-  return token;
-}
+const API_BASE_URL = getApiBaseUrl();
 
 export const connectionApi = axios.create({
   baseURL: API_BASE_URL,
@@ -26,7 +13,7 @@ export const connectionApi = axios.create({
 
 connectionApi.interceptors.request.use(
   (config) => {
-    const token = getToken();
+    const token = getAuthToken();
     if (token) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
@@ -34,6 +21,16 @@ connectionApi.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+connectionApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearAuthToken();
+    }
+    return Promise.reject(error);
+  }
 );
 
 function normalizeError(error) {

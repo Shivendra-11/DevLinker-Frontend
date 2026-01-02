@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { apiRequest } from "@/lib/apiClient";
+import { apiRequest, clearAuthToken, setAuthToken } from "@/lib/apiClient";
 
 // Keep context identity stable across Fast Refresh/HMR
 const AUTH_CONTEXT_KEY = "__DEVLINKER_AUTH_CONTEXT__";
@@ -82,7 +82,7 @@ export function AuthProvider({ children }) {
 
       const token = backendUser?.token;
       if (token) {
-        localStorage.setItem("token", token);
+        setAuthToken(token);
       }
 
       setUser(backendUser);
@@ -125,7 +125,7 @@ export function AuthProvider({ children }) {
 
       const token = backendUser?.token;
       if (token) {
-        localStorage.setItem("token", token);
+        setAuthToken(token);
       }
 
       setUser(backendUser);
@@ -139,16 +139,18 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
+    let error = null;
     try {
       await apiRequest("/auth/logout", { method: "POST" });
-      localStorage.removeItem("token");
+    } catch (err) {
+      error = err;
+    } finally {
+      clearAuthToken();
       setUser(null);
       setSession(null);
       setProfile(null);
-      return { error: null };
-    } catch (error) {
-      return { error };
     }
+    return { error };
   };
 
   const createProfile = async (profileData) => {

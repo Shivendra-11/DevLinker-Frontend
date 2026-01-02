@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { DEFAULT_API_URL } from "../lib/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn, fetchProfile } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,25 +26,19 @@ export default function Login() {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`${DEFAULT_API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          emailId: email,
-          password,
-        }),
-      });
+      const { error } = await signIn(email, password);
+      if (error) throw error;
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Failed to sign in");
-      }
+      // Ensure we have fresh user/profile state after login.
+      const profileRes = await fetchProfile();
+      if (profileRes?.error) throw profileRes.error;
+
+      const fromPath = location.state?.from?.pathname;
+      // If a route initiated the login, return there; otherwise route based on profile completeness.
+      const nextPath = fromPath || (profileRes?.data ? "/feed" : "/onboarding");
 
       toast.success("Welcome back!");
-      window.location.assign("/feed");
+      navigate(nextPath, { replace: true });
     } catch (err) {
       toast.error(err?.message || "Failed to sign in");
       setIsLoading(false);

@@ -1,20 +1,62 @@
 export const DEFAULT_API_URL = "http://localhost:4000/api/v1";
 
-function getToken() {
-  const raw =
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("authToken") ||
-    "";
+const TOKEN_STORAGE_PREFIX = "devlinker.token@";
 
+function sanitizeToken(raw) {
   const token = String(raw || "").trim();
   if (!token) return "";
   if (token === "undefined" || token === "null") return "";
   return token;
 }
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   return (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+}
+
+function getTokenStorageKey() {
+  const origin = getBackendOrigin();
+  return `${TOKEN_STORAGE_PREFIX}${origin || "default"}`;
+}
+
+export function getAuthToken() {
+  const key = getTokenStorageKey();
+  const fromScopedKey = sanitizeToken(localStorage.getItem(key));
+  if (fromScopedKey) return fromScopedKey;
+
+  // Backwards-compat: older builds stored token under generic keys.
+  const legacyRaw =
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("authToken") ||
+    "";
+
+  const legacyToken = sanitizeToken(legacyRaw);
+  if (legacyToken) {
+    // Migrate to scoped storage to avoid signature mismatch when switching backends.
+    localStorage.setItem(key, legacyToken);
+  }
+  return legacyToken;
+}
+
+export function setAuthToken(token) {
+  const sanitized = sanitizeToken(token);
+  const key = getTokenStorageKey();
+
+  if (!sanitized) {
+    clearAuthToken();
+    return;
+  }
+
+  localStorage.setItem(key, sanitized);
+  // Keep generic key for any older code paths.
+  localStorage.setItem("token", sanitized);
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(getTokenStorageKey());
+  localStorage.removeItem("token");
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("authToken");
 }
 
 export function getBackendOrigin() {
@@ -40,7 +82,7 @@ export async function apiRequest(path, options = {}) {
   const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
 
-  const token = getToken();
+  const token = getAuthToken();
 
   const isFormData = Boolean(options?.isFormData);
   const headers = {
@@ -60,6 +102,19 @@ export async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const message = await parseErrorResponse(response);
+    const messageStr = String(message || "");
+    const lower = messageStr.toLowerCase();
+
+    // If the user switches from localhost <-> Render, an old token can fail JWT verification.
+    // Clear it so future requests don't keep spamming 401s.
+    if (
+      response.status === 401 ||
+      lower.includes("invalid signature") ||
+      lower.includes("jwt") ||
+      lower.includes("token expired")
+    ) {
+      clearAuthToken();
+    }
     throw new Error(message);
   }
 

@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, ArrowLeft, Eye, EyeOff, Check } from "lucide-react";
 import { toast } from "sonner";
-import { DEFAULT_API_URL } from "../lib/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -50,29 +51,16 @@ export default function Signup() {
     const lastName = nameParts.slice(1).join(" ");
     
     try {
-      const response = await fetch(`${DEFAULT_API_URL}/auth/signup`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          fullName: trimmedName,
-          emailId: formData.email,
-          password: formData.password,
-          confirmPassword: formData.confirmPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Failed to create account");
-      }
+      const { error } = await signUp(
+        formData.email,
+        formData.password,
+        `${firstName} ${lastName}`.trim(),
+        formData.confirmPassword
+      );
+      if (error) throw error;
 
       toast.success("Account created! Let's set up your profile.");
-      window.location.assign("/onboarding");
+      navigate("/onboarding", { replace: true });
     } catch (err) {
       toast.error(err?.message || "Failed to create account");
       setIsLoading(false);

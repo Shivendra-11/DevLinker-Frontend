@@ -18,7 +18,6 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { DEFAULT_API_URL } from "../lib/apiClient";
 
 const skills = [
   "React", "Vue.js", "Angular", "Node.js", "Python", "Go", "Rust",
@@ -35,7 +34,7 @@ const availabilityOptions = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { createProfile, user } = useAuth();
+  const { createProfile, signOut, user } = useAuth();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -87,17 +86,10 @@ export default function Onboarding() {
 
     // Per desired flow: finish onboarding, then return to login.
     // Logging out forces a fresh login and keeps route guards consistent.
-    try {
-      await fetch(`${DEFAULT_API_URL}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch {
-      toast.error("Failed to log out");
-    }
+    await signOut();
 
     toast.success("Profile saved! Please sign in to continue.");
-    window.location.assign("/login");
+    navigate("/login", { replace: true });
     setIsLoading(false);
   };
 
