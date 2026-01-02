@@ -65,6 +65,8 @@ const techStack = [
 ];
 
 export default function Landing() {
+  const linkedinUrl = "https://www.linkedin.com/in/shivendra-keshari-46aa67256/";
+
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Navigation */}
@@ -102,8 +104,6 @@ export default function Landing() {
       {/* Hero Section - Completely Redesigned */}
       <section className="relative min-h-screen flex items-center pt-16">
         {/* Background */}
-        const linkedinUrl = import.meta.env.VITE_LINKEDIN_URL || "https://www.linkedin.com";
-
         <div className="absolute inset-0">
           <div 
             className="absolute inset-0 opacity-30 dark:opacity-50"
