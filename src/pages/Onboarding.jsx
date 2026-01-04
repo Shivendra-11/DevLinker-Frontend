@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveBackendAssetUrl } from "@/lib/apiClient";
 
 const skills = [
   "React", "Vue.js", "Angular", "Node.js", "Python", "Go", "Rust",
@@ -112,7 +113,7 @@ export default function Onboarding() {
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
             <span className="font-bold gradient-text">Devlinker</span>
-          </div>
+                          <img src={resolveBackendAssetUrl(formData.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
           <div className="text-sm text-muted-foreground">
             Step {step} of 4
           </div>

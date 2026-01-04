@@ -30,7 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { deleteDiscussPost, listDiscussPosts, updateDiscussPost } from "@/services/discussService";
-import { getBackendOrigin } from "@/lib/apiClient";
+import { getBackendOrigin, resolveBackendAssetUrl } from "@/lib/apiClient";
 
 const DISCUSS_CATEGORIES = ["General", "Questions", "News", "Help"];
 
@@ -242,7 +242,7 @@ const Profile = () => {
             </div>
             <div className="flex justify-center -mt-16 relative z-10">
               <div className="relative group">
-                <img src={displayProfile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`} alt={displayProfile.name} className="relative w-32 h-32 rounded-2xl border-4 border-background object-cover shadow-2xl bg-muted" />
+                <img src={resolveBackendAssetUrl(displayProfile.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`} alt={displayProfile.name} className="relative w-32 h-32 rounded-2xl border-4 border-background object-cover shadow-2xl bg-muted" />
                 {profile.is_premium && (<div className="absolute -top-3 -right-3 animate-bounce" style={{ animationDuration: '2s' }}><Badge className="gradient-primary gap-1 shadow-lg"><Crown className="w-3 h-3" />Premium</Badge></div>)}
                 {isEditing && (
                   <>

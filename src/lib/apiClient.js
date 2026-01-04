@@ -64,6 +64,40 @@ export function getBackendOrigin() {
   return base.replace(/\/api\/v1\/?$/i, "");
 }
 
+// Normalizes upload URLs so avatars/media hosted by the backend keep working
+// across reloads and across environment/host changes.
+//
+// Handles:
+// - Relative URLs like "/uploads/..."
+// - Absolute URLs pointing at a different origin (e.g., Vite proxy rewriting host)
+//
+// Returns empty string for falsy input.
+export function resolveBackendAssetUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+
+  // Leave browser-managed URLs alone.
+  if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw;
+
+  const backendOrigin = getBackendOrigin();
+  if (!backendOrigin) return raw;
+
+  if (raw.startsWith("/uploads/")) {
+    return `${backendOrigin}${raw}`;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.pathname.startsWith("/uploads/")) {
+      return `${backendOrigin}${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    // Not a valid URL; fall back to raw.
+  }
+
+  return raw;
+}
+
 async function parseErrorResponse(response) {
   // Backend sometimes returns plain-text like: "ERROR : message"
   const text = await response.text();

@@ -10,6 +10,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getChatWithUser, listChats, sendMessageToUser } from "@/services/chatService";
+import { io } from "socket.io-client";
+import { getBackendOrigin } from "@/lib/apiClient";
 
 export default function Messages() {
   const { profile } = useAuth();
@@ -42,9 +44,35 @@ export default function Messages() {
   const messagesEndRef = useRef(null);
   const unreadFetchInFlightRef = useRef(new Set());
 
+  const socketRef = useRef(null);
+  const joinedTargetIdsRef = useRef(new Set());
+  const [socketConnected, setSocketConnected] = useState(false);
+
   const scrollToBottom = (behavior = "auto") => {
     if (!messagesEndRef.current) return;
     messagesEndRef.current.scrollIntoView({ behavior, block: "end" });
+  };
+
+  const splitName = (fullName) => {
+    const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { firstName: "", lastName: "" };
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+  };
+
+  const ensureJoinedRoom = (targetUserId) => {
+    const socket = socketRef.current;
+    const target = String(targetUserId || "");
+    if (!socket || !socketConnected) return;
+    if (!currentUserId || !target) return;
+    if (joinedTargetIdsRef.current.has(target)) return;
+
+    const { firstName } = splitName(profile?.name);
+    socket.emit("joinChat", {
+      firstName: firstName || "User",
+      userId: String(currentUserId),
+      targetUserId: target,
+    });
+    joinedTargetIdsRef.current.add(target);
   };
 
   const totalUnread = useMemo(
@@ -302,15 +330,129 @@ export default function Messages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
-  // Polling for new messages (until socket.io is integrated)
+  // Socket.IO real-time updates
   useEffect(() => {
     if (!currentUserId) return;
+
+    const backendOrigin = getBackendOrigin();
+    const socket = io(backendOrigin, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
+    socketRef.current = socket;
+    joinedTargetIdsRef.current = new Set();
+
+    const onConnect = () => setSocketConnected(true);
+    const onDisconnect = () => setSocketConnected(false);
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
+    socket.on("messageReceived", (payload) => {
+      const senderId = String(payload?.senderId || "");
+      const targetUserId = String(payload?.targetUserId || "");
+      const msg = payload?.message;
+      const text = msg?.text ?? "";
+      const createdAt = msg?.createdAt ?? new Date().toISOString();
+
+      if (!senderId || !targetUserId) return;
+
+      // Avoid duplicating our own optimistic messages in this tab.
+      if (senderId === String(currentUserId)) return;
+
+      const otherUserId = senderId === String(currentUserId) ? targetUserId : senderId;
+
+      const incomingMessage = {
+        id: msg?._id || `msg-${Date.now()}`,
+        senderId: senderId,
+        content: text,
+        timestamp: createdAt,
+      };
+
+      // If the chat is currently open, append to thread and mark read.
+      const isOpen = String(selectedChat?.profile?.id || "") === String(otherUserId);
+      if (isOpen) {
+        setSelectedChat((prev) => {
+          if (!prev) return prev;
+          const exists = prev.messages?.some((m) => String(m.id) === String(incomingMessage.id));
+          if (exists) return prev;
+          return { ...prev, messages: [...prev.messages, incomingMessage] };
+        });
+        markChatAsRead(String(otherUserId), createdAt);
+      }
+
+      // Update chat list preview + unread count
+      setChats((prev) => {
+        const next = prev.map((chat) => {
+          if (String(chat.profile?.id) !== String(otherUserId)) return chat;
+          const nextUnread = isOpen ? 0 : (chat.unreadCount || 0) + 1;
+          return {
+            ...chat,
+            lastMessage: text,
+            lastMessageSenderId: senderId,
+            lastMessageTime: createdAt,
+            unreadCount: nextUnread,
+            messages: isOpen ? (chat.messages || []) : (chat.messages || []),
+          };
+        });
+
+        // If chat not found in list yet (edge case), fall back to refresh via polling/HTTP.
+        return next.sort((a, b) => {
+          const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+          const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+          return tb - ta;
+        });
+      });
+
+      if (!isOpen) {
+        toast(`${payload?.message?.text ? "New message" : "New message"}: ${text}`);
+      }
+    });
+
+    return () => {
+      try {
+        socket.off("connect", onConnect);
+        socket.off("disconnect", onDisconnect);
+        socket.off("messageReceived");
+        socket.disconnect();
+      } catch {
+        // ignore
+      }
+      socketRef.current = null;
+      setSocketConnected(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
+  // Join rooms for every chat so list updates in real-time.
+  useEffect(() => {
+    if (!socketConnected) return;
+    if (!Array.isArray(chats)) return;
+    for (const c of chats) {
+      if (c?.profile?.id) ensureJoinedRoom(c.profile.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socketConnected, chats]);
+
+  // Ensure we join the currently open chat room too.
+  useEffect(() => {
+    if (!socketConnected) return;
+    const target = selectedChat?.profile?.id;
+    if (target) ensureJoinedRoom(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socketConnected, selectedChat?.profile?.id]);
+
+  // Polling fallback (disabled when Socket.IO is connected)
+  useEffect(() => {
+    if (!currentUserId) return;
+    if (socketConnected) return;
     const id = setInterval(() => {
       refreshChats({ showToasts: true, background: true });
     }, 5000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, selectedChat?.profile?.id]);
+  }, [currentUserId, selectedChat?.profile?.id, socketConnected]);
 
   useEffect(() => {
     if (!currentUserId) return;

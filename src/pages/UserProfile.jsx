@@ -8,6 +8,7 @@ import { Crown, ExternalLink, Github, Globe, Linkedin, MapPin, Briefcase, Share2
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserProfile } from "@/services/userService";
+import { resolveBackendAssetUrl } from "@/lib/apiClient";
 
 function mapBackendUserToProfile(backendUser) {
   if (!backendUser) return null;
@@ -87,7 +88,7 @@ export default function UserProfile() {
             <div className="flex justify-center -mt-16 relative z-10">
               <div className="relative group">
                 <img
-                  src={displayProfile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayProfile.id}`}
+                  src={resolveBackendAssetUrl(displayProfile.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayProfile.id}`}
                   alt={displayProfile.name}
                   className="relative w-32 h-32 rounded-2xl border-4 border-background object-cover shadow-2xl bg-muted"
                 />

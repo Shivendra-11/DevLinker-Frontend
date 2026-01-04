@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Sparkles, MessageCircle, X } from "lucide-react";
+import { resolveBackendAssetUrl } from "@/lib/apiClient";
 
 export function MatchAnimation({ developer, onClose, onMessage }) {
   return (
@@ -16,7 +17,7 @@ export function MatchAnimation({ developer, onClose, onMessage }) {
           </div>
           <div className="text-4xl">💜</div>
           <div className="w-24 h-24 rounded-full border-4 border-primary overflow-hidden animate-float" style={{ animationDelay: "0.5s" }}>
-            <img src={developer?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${developer?.id}`} alt={developer?.name} className="w-full h-full object-cover" />
+            <img src={resolveBackendAssetUrl(developer?.avatar_url) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${developer?.id}`} alt={developer?.name} className="w-full h-full object-cover" />
           </div>
         </div>
         <div className="flex gap-4 justify-center">
