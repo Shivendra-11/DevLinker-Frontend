@@ -104,7 +104,7 @@ export function DeveloperCard({ developer, onSwipeLeft, onSwipeRight, isActionLo
           
           {/* Premium Badge */}
           {developer.is_premium && (
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4  ml-4 right-4">
               <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg gap-1.5 px-3 py-1">
                 <Crown className="w-3.5 h-3.5" />
                 Premium
